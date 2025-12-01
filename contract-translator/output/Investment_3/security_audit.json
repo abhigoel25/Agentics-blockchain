@@ -1,0 +1,16 @@
+{
+  "severity_level": "medium",
+  "approved": false,
+  "issues": [
+    "Fundraising can only be successfully initiated once. Once funds are raised, the contract cannot accept any more funds, even if the investor wants to invest more. This may limit future funding options.",
+    "The obligation trigger function does not have a mechanism to allow the investor to confirm or contest the trigger, potentially leading to misuse.",
+    "The withdrawal function could be exploited if the investor and company are not acting in good faith, as it allows the company to withdraw all funds without further checks after the funds are raised."
+  ],
+  "recommendations": [
+    "Consider implementing a mechanism that allows multiple rounds of funding or allows investors to contribute again if additional funding is required.",
+    "Allow a deadline for the investor to confirm or contest the redemption obligation being triggered, to ensure a fair process.",
+    "Implement checks and balances, such as requiring a minimum waiting period or an additional confirmation step before allowing fund withdrawals by the company."
+  ],
+  "vulnerability_count": 3,
+  "security_score": "C"
+}

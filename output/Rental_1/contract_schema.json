@@ -1,0 +1,77 @@
+{
+  "contract_type": "rental",
+  "title": "Simple Rental Agreement",
+  "parties": [
+    {
+      "name": "_________________________ ________________________________",
+      "role": "tenant",
+      "address": "optional blockchain address",
+      "email": "optional",
+      "entity_type": "individual"
+    },
+    {
+      "name": "___________________________________________________",
+      "role": "landlord",
+      "address": "optional blockchain address",
+      "email": "optional",
+      "entity_type": "individual"
+    }
+  ],
+  "financial_terms": [],
+  "dates": [
+    {
+      "date_type": "made",
+      "value": "_____________",
+      "day_of_month": null,
+      "frequency": null
+    },
+    {
+      "date_type": "start",
+      "value": "_______________",
+      "day_of_month": null,
+      "frequency": null
+    },
+    {
+      "date_type": "end",
+      "value": "____________________",
+      "day_of_month": null,
+      "frequency": null
+    },
+    {
+      "date_type": "payment_due",
+      "value": "___ ____",
+      "day_of_month": null,
+      "frequency": "monthly"
+    }
+  ],
+  "assets": [
+    {
+      "type": "real_estate",
+      "description": "rental property",
+      "location": "____________________________________________________________________________ (address)",
+      "quantity": null,
+      "value": null
+    }
+  ],
+  "obligations": [
+    {
+      "party": "tenant",
+      "description": "pay monthly rent on due date",
+      "deadline": null,
+      "penalty_for_breach": "N/A"
+    },
+    {
+      "party": "tenant",
+      "description": "pay for damages or cleaning fees prior to occupancy",
+      "deadline": "prior to occupancy",
+      "penalty_for_breach": "N/A"
+    }
+  ],
+  "special_terms": [
+    "Limited utilities may be included in the rent"
+  ],
+  "conditions": {},
+  "termination_conditions": [
+    "dependent on end date or renewal"
+  ]
+}

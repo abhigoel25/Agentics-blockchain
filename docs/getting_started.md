@@ -59,13 +59,6 @@ ollama pull ollama/deepseek-r1:latest
 - `MODEL`  - watsonx/meta-llama/llama-3-3-70b-instruct (or alternative supporting function call)
 
 
-#### Google Gemini (offer free API key) 
-
-- `WATSONX_APIKEY` - WatsonX API key
-
-- `MODEL`  - watsonx/meta-llama/llama-3-3-70b-instruct (or alternative supporting function call)
-
-
 #### VLLM (Need dedicated GPU server):
 
 - Set up your local instance of VLLM
