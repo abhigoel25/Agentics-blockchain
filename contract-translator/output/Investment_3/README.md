@@ -13,15 +13,15 @@
 ## Generated Files
 
 ### Smart Contract Files
-1. **BlockChain_Venture_Ca.sol** - Solidity smart contract (85 lines)
-2. **BlockChain_Venture_Ca.abi.json** - Contract ABI (20 elements)
+1. **BlockChain_Venture_Ca.sol** - Solidity smart contract (43 lines)
+2. **BlockChain_Venture_Ca.abi.json** - Contract ABI (12 elements)
 
 ### Configuration & Documentation
 3. **contract_schema.json** - Structured contract data
 4. **security_audit.json** - Security audit report
 
 ### MCP Server
-5. **BlockChain_Venture_Ca_mcp_server.py** - Custom MCP server (407 lines)
+5. **BlockChain_Venture_Ca_mcp_server.py** - Custom MCP server (171 lines)
 6. **.env.example** - Environment configuration template
 
 ## Using the MCP Server
@@ -56,22 +56,15 @@ python BlockChain_Venture_Ca_mcp_server.py
 
 ### 5. Available Tools
 The MCP server exposes these tools based on the contract ABI:
+- `makeInvestment()` - State-changing transaction
+- `redeemShares()` - State-changing transaction
+- `getTotalInvestment()` - Read-only query
+- `getSharePrice()` - Read-only query
 - `company()` - Read-only query
 - `investor()` - Read-only query
-- `priceAmount()` - Read-only query
-- `totalInvestmentAmount()` - Read-only query
-- `startDate()` - Read-only query
-- `redemptionTriggerDate()` - Read-only query
-- `preMoneyValuation()` - Read-only query
-- `postMoneyValuation()` - Read-only query
-- `investorOwnershipPercentage()` - Read-only query
-- `fundsRaised()` - Read-only query
-- `obligationTriggered()` - Read-only query
-- `obligationDeadline()` - Read-only query
-- `raiseFunds()` - State-changing transaction
-- `triggerRedemptionObligation()` - State-changing transaction
-- `redeemShares()` - State-changing transaction
-- `withdrawFunds()` - State-changing transaction
+- `totalInvestment()` - Read-only query
+- `sharePrice()` - Read-only query
+- `obligationsMet()` - Read-only query
 
 ## Next Steps
 1. ✅ Review security audit

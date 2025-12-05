@@ -239,8 +239,12 @@ class UniversalSolidityGeneratorProgram(Program):
             system_message(
                 f"""You are a Solidity expert who generates smart contracts for {schema.contract_type}.
                 
-                You understand the specific requirements and patterns for this contract type.
-                You write secure, production-ready code following best practices."""
+                IMPORTANT: Generate DEFENSIVE code that handles missing data gracefully.
+                - For optional fields missing from the contract, use sensible defaults
+                - Never fail a function just because optional contract terms aren't present
+                - Return 0 for uint, address(0) for address, false for bool, "" for string when data is missing
+                - Use if/else checks instead of require() for optional contract conditions
+                - ALL functions must always execute safely, never breaking on missing contract clauses"""
             ),
             user_message(
                 f"""Generate a Solidity ^0.8.0 smart contract for this {schema.contract_type}:
@@ -250,13 +254,22 @@ class UniversalSolidityGeneratorProgram(Program):
 Requirements for {schema.contract_type}:
 {requirements}
 
-Generate a complete, secure smart contract that:
+Generate a complete, secure, DEFENSIVE smart contract that:
 1. Handles all parties: {[p.name + ' (' + p.role + ')' for p in schema.parties]}
 2. Manages financial terms: {[f"{t.amount} {t.currency} for {t.purpose}" for t in schema.financial_terms]}
 3. Tracks obligations and conditions
 4. Includes appropriate events
 5. Has proper access control
-6. Follows security best practices
+6. Handles missing data gracefully - never fails on missing optional terms
+7. Returns sensible defaults for optional fields
+
+DEFENSIVE RULES:
+- Store all parties, dates, and amounts from the contract
+- For missing party addresses, store address(0)
+- For missing amounts, store 0
+- Getter functions ALWAYS return safely, never revert
+- Action functions check if amounts > 0 before processing
+- No require() statements that fail due to missing optional clauses
 
 Return ONLY the Solidity code."""
             )
@@ -273,49 +286,301 @@ Return ONLY the Solidity code."""
         
         return solidity_code
     
+    def regenerate_with_error_feedback(self, schema: UniversalContractSchema, error_message: str, lm: LLM) -> str:
+        """Regenerate contract with compilation error feedback"""
+        
+        print(f"\n🔧 REGENERATING CONTRACT WITH ERROR FEEDBACK")
+        print(f"   Error reported: {error_message[:100]}...")
+        
+        requirements = self._get_requirements_for_type(schema.contract_type)
+        
+        messages = [
+            system_message(
+                f"""You are a Solidity expert debugging and regenerating smart contracts.
+
+IMPORTANT: The previous generation had syntax errors. This regeneration MUST:
+1. Generate ONLY valid Solidity ^0.8.0 code
+2. Ensure ALL statements end with semicolons
+3. Match all parentheses, brackets, and braces
+4. Include only complete, valid Solidity syntax
+5. No incomplete function declarations
+6. No missing statement terminators
+7. Handle all edge cases defensively
+8. Return 0/address(0)/false for missing optional data
+
+CRITICAL: The previous version had this error: {error_message[:150]}
+
+AVOID THIS by:
+- Ensuring EVERY statement ends with ;
+- Completing ALL function bodies
+- Removing any incomplete or dangling code
+- Using only standard Solidity patterns
+- Testing the syntax mentally before generating"""
+            ),
+            user_message(
+                f"""REGENERATE a corrected Solidity ^0.8.0 smart contract for this {schema.contract_type}.
+
+CRITICAL: Fix the previous compilation error: {error_message[:200]}
+
+Contract details:
+{schema.model_dump_json(indent=2)}
+
+Requirements for {schema.contract_type}:
+{requirements}
+
+Generate a COMPLETE, SYNTACTICALLY CORRECT smart contract:
+1. Every statement MUST end with semicolon
+2. Every function body MUST be complete
+3. All parentheses/brackets matched
+4. No incomplete or dangling code
+5. Handles all parties defensively: {[p.name for p in schema.parties]}
+6. Manages financial terms: {[f"{t.amount} {t.currency}" for t in schema.financial_terms]}
+7. Completely defensive - returns safely for missing optional data
+
+Return ONLY valid, compilable Solidity code."""
+            )
+        ]
+        
+        print(f"   Requesting LLM to regenerate with error feedback...")
+        response = lm.chat(messages=messages)
+        solidity_code = str(response).strip()
+        
+        # Remove markdown code fences if present
+        if "```solidity" in solidity_code:
+            solidity_code = solidity_code.split("```solidity")[1].split("```")[0].strip()
+        elif "```" in solidity_code:
+            solidity_code = solidity_code.split("```")[1].split("```")[0].strip()
+        
+        print(f"   ✓ Regenerated contract ({len(solidity_code.splitlines())} lines)")
+        return solidity_code
+    
     def _get_requirements_for_type(self, contract_type: str) -> str:
         """Get contract-type-specific requirements"""
         
         requirements_map = {
+            'non_disclosure_agreement': """
+REQUIRED FUNCTIONS FOR NDA:
+VIEW FUNCTIONS (getters - must handle missing data gracefully):
+- getPartyA() returns address
+- getPartyB() returns address  
+- getConfidentialityPeriodDays() returns uint
+- getBreachPenaltyAmount() returns uint
+- isConfidentialityActive() returns bool
+- getBreachCount() returns uint
+
+ACTION FUNCTIONS (only if relevant):
+- confirmConfidentiality(bool agreeToTerms)
+- reportBreach(string memory description)
+- calculatePenalty(uint breachCount) returns uint256
+- checkTerminationDate() returns (bool isExpired, uint daysRemaining)
+
+STATE VARIABLES TO STORE:
+- partyA, partyB (addresses, use address(0) if missing)
+- confidentialityStartDate, confidentialityPeriodDays (0 if not specified)
+- breachPenalty (0 if not specified)
+- breachReportedCount (tracks breaches)
+- isActive (bool)
+
+IMPORTANT: All functions must be defensive - return safely even if data missing.""",
+            
             'rental_agreement': """
-                - Monthly rent payment function
-                - Security deposit handling
-                - Lease term tracking
-                - Property address storage
-            """,
+REQUIRED FUNCTIONS FOR RENTAL:
+VIEW FUNCTIONS:
+- getLandlord() returns address
+- getTenant() returns address
+- getMonthlyRent() returns uint
+- getSecurityDeposit() returns uint
+- getLeaseStartDate() returns uint
+- getLeaseEndDate() returns uint
+- isLeaseActive() returns bool
+- getTotalRentPaid() returns uint
+- getDaysUntilLeaseEnd() returns uint
+
+ACTION FUNCTIONS:
+- payRent(uint amountInWei) payable
+- inspectProperty(string memory notes)
+- terminateLease(string memory reason)
+- refundSecurityDeposit()
+
+STATE VARIABLES TO STORE:
+- landlord, tenant (addresses)
+- monthlyRent, securityDeposit (amounts)
+- leaseStartDate, leaseEndDate (dates)
+- totalRentPaid (tracking)
+- isActive (bool)
+
+IMPORTANT: All getters return safely with defaults (0, address(0)) if data missing.""",
+            
             'employment_contract': """
-                - Salary payment function
-                - Employment term tracking
-                - Position/role storage
-                - Termination conditions
-            """,
+REQUIRED FUNCTIONS FOR EMPLOYMENT:
+VIEW FUNCTIONS:
+- getEmployee() returns address
+- getEmployer() returns address
+- getBaseSalary() returns uint
+- getPerformanceBonus() returns uint
+- getEmploymentStartDate() returns uint
+- getEmploymentEndDate() returns uint
+- isEmploymentActive() returns bool
+- getTotalSalaryEarned() returns uint
+- getOutstandingSalary() returns uint
+
+ACTION FUNCTIONS:
+- payEmployeeSalary() payable
+- payBonus(uint bonusAmount) payable
+- terminateEmployment(string memory reason)
+- claimSeverancePayment()
+
+STATE VARIABLES TO STORE:
+- employee, employer (addresses)
+- baseSalary, performanceBonus (amounts, 0 if not specified)
+- employmentStartDate, employmentEndDate (dates, 0 if missing)
+- totalSalaryPaid, isEmployed (tracking)
+
+IMPORTANT: Handle missing salary/bonus gracefully - return 0, don't fail.""",
+            
             'sales_agreement': """
-                - Purchase price payment
-                - Delivery confirmation
-                - Goods/asset transfer
-                - Warranty tracking
-            """,
+REQUIRED FUNCTIONS FOR SALES:
+VIEW FUNCTIONS:
+- getSeller() returns address
+- getBuyer() returns address
+- getGoodsDescription() returns string
+- getPurchasePrice() returns uint
+- getPaymentTerms() returns string
+- isDeliveryComplete() returns bool
+- hasInspectionPassed() returns bool
+- getOutstandingPayment() returns uint
+
+ACTION FUNCTIONS:
+- confirmOrderDetails(string memory terms)
+- makePayment() payable
+- shipGoods(string memory trackingNumber)
+- confirmDelivery()
+- inspectGoods(bool passed, string memory notes)
+- releaseFunds()
+
+STATE VARIABLES TO STORE:
+- seller, buyer (addresses)
+- goodsDescription (string)
+- purchasePrice, totalPaidAmount (amounts, 0 if missing)
+- deliveryConfirmed, inspectionPassed (bools)
+
+IMPORTANT: Handle missing descriptions and prices gracefully.""",
+            
             'service_agreement': """
-                - Milestone payment system
-                - Service delivery confirmation
-                - Scope of work tracking
-                - Performance metrics
-            """,
+REQUIRED FUNCTIONS FOR SERVICE:
+VIEW FUNCTIONS:
+- getServiceProvider() returns address
+- getClient() returns address
+- getServiceDescription() returns string
+- getMilestoneAmount() returns uint
+- getTotalMilestones() returns uint
+- getCompletedMilestones() returns uint
+- getMonthlyServiceFee() returns uint
+- getTotalAmountPaid() returns uint
+- isServiceActive() returns bool
+
+ACTION FUNCTIONS:
+- confirmServiceStart()
+- payMonthlyServiceFee() payable
+- payMilestonePayment(uint milestoneNumber) payable
+- reportMilestoneCompletion(string memory evidence)
+- approveMilestoneCompletion(uint milestoneNumber)
+- reportServiceIssue(string memory issue)
+- terminateService(string memory reason)
+
+STATE VARIABLES TO STORE:
+- serviceProvider, client (addresses)
+- milestoneAmount, monthlyServiceFee (amounts, 0 if missing)
+- completedMilestones, totalAmountPaid (tracking)
+- isActive (bool)
+
+IMPORTANT: All functions safe with missing milestone/fee data.""",
+            
             'loan_agreement': """
-                - Principal amount tracking
-                - Interest calculation
-                - Repayment schedule
-                - Collateral management
-            """,
-            # Add more types...
+REQUIRED FUNCTIONS FOR LOAN:
+VIEW FUNCTIONS:
+- getLender() returns address
+- getBorrower() returns address
+- getPrincipalAmount() returns uint
+- getInterestRate() returns uint
+- getMonthlyPayment() returns uint
+- getLoanTermMonths() returns uint
+- getTotalAmountRepaid() returns uint
+- getRemainingBalance() returns uint
+- isLoanActive() returns bool
+- isLoanInDefault() returns bool
+
+ACTION FUNCTIONS:
+- disburseLoan() payable
+- makeMonthlyPayment() payable
+- makePrepayment(uint amount) payable
+- calculateInterestAccrued() returns uint
+- reportPaymentDefault()
+- cureDefaultPayment() payable
+- terminateLoanEarly() payable
+
+STATE VARIABLES TO STORE:
+- lender, borrower (addresses)
+- principalAmount, interestRate, monthlyPayment (amounts, 0 if missing)
+- totalAmountRepaid, isActive, inDefault (tracking)
+
+IMPORTANT: Interest calculations return 0 if rate not specified.""",
+            
+            'investment_agreement': """
+REQUIRED FUNCTIONS FOR INVESTMENT:
+VIEW FUNCTIONS:
+- getInvestor() returns address
+- getCompany() returns address
+- getInvestmentAmount() returns uint
+- getEquityPercentage() returns uint
+- getSharesPurchased() returns uint
+- getInvestmentDate() returns uint
+- getDividendRate() returns uint
+- getTotalDividendsPaid() returns uint
+- canRedeemShares() returns bool
+
+ACTION FUNCTIONS:
+- fundInvestment() payable
+- claimBoardSeat()
+- requestFinancialStatements()
+- receiveDividendPayment() payable
+- claimDividends()
+- reportDownRound(uint newValuation)
+- requestRedemption()
+- settleRedemption() payable
+
+STATE VARIABLES TO STORE:
+- investor, company (addresses)
+- investmentAmount, equityPercentage, sharesPurchased (amounts, 0 if missing)
+- investmentDate, dividendRate (0 if missing)
+- totalDividendsPaid, boardSeatGranted (tracking)
+
+IMPORTANT: All functions safe with missing valuation/dividend data.""",
         }
         
         return requirements_map.get(contract_type, """
-            - Generic payment handling
-            - Term tracking
-            - Obligation management
-            - Event logging
-        """)
+REQUIRED FOR ALL CONTRACTS:
+VIEW FUNCTIONS:
+- Create getters for all mentioned parties, amounts, and dates
+- All getters must return safely with sensible defaults
+- Return 0 for uint, address(0) for address, false for bool, "" for string
+
+ACTION FUNCTIONS:
+- Create functions for all contract obligations mentioned
+- Use if/else for optional conditions, NOT require()
+- Never fail just because optional data is missing
+
+STATE VARIABLES:
+- Store all parties (use address(0) if missing)
+- Store all amounts (use 0 if missing)
+- Store all dates (use 0 if missing)
+- Store tracking variables initialized to 0 or false
+
+DEFENSIVE PROGRAMMING RULES:
+- EVERY function must handle missing data gracefully
+- Return sensible defaults, never revert on missing fields
+- Check if amounts > 0 before operations
+- Never require() to fail due to missing optional terms""")
 
 
 class SecurityAuditorProgram(Program):
@@ -709,12 +974,32 @@ class IBMAgenticContractTranslator:
         results['schema'] = schema
         print(f"✓ Parsed: {len(schema.parties)} parties, {len(schema.financial_terms)} financial terms")
         
+        # Convert schema to dict for JSON serialization to frontend
+        try:
+            if hasattr(schema, 'model_dump'):
+                schema_dict = schema.model_dump()
+            elif hasattr(schema, '__dict__'):
+                schema_dict = schema.__dict__
+            else:
+                schema_dict = {}
+        except Exception as e:
+            print(f"   ⚠️  Error converting schema to dict: {e}")
+            schema_dict = {
+                'contract_type': str(schema.contract_type),
+                'parties': [{'name': p.name, 'role': p.role} for p in schema.parties] if schema.parties else [],
+                'financial_terms': [{'amount': t.amount, 'currency': t.currency, 'purpose': t.purpose} for t in schema.financial_terms] if schema.financial_terms else []
+            }
+        
         yield {
             'phase': 2,
             'status': 'complete',
             'data': {
                 'title': 'Contract Analysis',
-                'message': f'Parsed: {len(schema.parties)} parties, {len(schema.financial_terms)} financial terms'
+                'message': f'Parsed: {len(schema.parties)} parties, {len(schema.financial_terms)} financial terms',
+                'contract_type': schema.contract_type,
+                'parties': schema_dict.get('parties', []) if isinstance(schema_dict, dict) else [],
+                'financial_terms': schema_dict.get('financial_terms', []) if isinstance(schema_dict, dict) else [],
+                'schema': schema_dict
             }
         }
         
@@ -741,7 +1026,17 @@ class IBMAgenticContractTranslator:
         severity = audit_report.get('severity_level', 'unknown')
         score = audit_report.get('security_score', 'N/A')
         issues = audit_report.get('issues', [])
-        print(f"✓ Audit: Severity={severity}, Score={score}")
+        print(f"✓ Audit Complete: Severity={severity}, Score={score}")
+        
+        # Log audit issues for regeneration tracking
+        if issues:
+            print(f"   ⚠️  Found {len(issues)} issue(s) during security audit:")
+            for idx, issue in enumerate(issues[:5], 1):  # Show first 5
+                issue_text = issue[:100] + "..." if len(str(issue)) > 100 else issue
+                print(f"      {idx}. {issue_text}")
+            print(f"   🔄 Contract may be regenerated with audit feedback if compilation fails")
+        else:
+            print(f"   ✓ No security issues detected")
         
         # Send audit details to frontend for user approval
         yield {

@@ -2,84 +2,42 @@
 pragma solidity ^0.8.0;
 
 contract SeriesAPreferredStockPurchaseAgreement {
+    event InvestmentMade(address indexed investor, uint256 amount);
+    event SharesRedeemed(address indexed company, uint256 amount);
+    
     address public company;
     address public investor;
-
-    uint256 public constant priceAmount = 8000000 ether; // Price in USD, converted to wei for payment handling
-    uint256 public constant totalInvestmentAmount = 10000000 ether; // Total investment amount in wei
-    uint256 public constant startDate = 1735689600; // 2025-01-01 in UNIX timestamp
-    uint256 public constant redemptionTriggerDate = 1893561600; // 2030-01-01 in UNIX timestamp
-    uint256 public constant preMoneyValuation = 30000000 ether;
-    uint256 public constant postMoneyValuation = 40000000 ether;
-    uint256 public constant investorOwnershipPercentage = 25; // 25%
     
-    bool public fundsRaised = false;
-    bool public obligationTriggered = false;
-    uint256 public obligationDeadline;
+    uint256 public totalInvestment;
+    uint256 public sharePrice;
+    
+    mapping(address => bool) public obligationsMet;
 
-    event InvestmentReceived(address indexed investor, uint256 amount);
-    event RedemptionObligationTriggered(uint256 deadline);
-
-    modifier onlyCompany() {
-        require(msg.sender == company, "Only company can call this function");
-        _;
-    }
-
-    modifier onlyInvestor() {
-        require(msg.sender == investor, "Only investor can call this function");
-        _;
-    }
-
-    modifier afterStartDate() {
-        require(block.timestamp >= startDate, "Investment period has not started");
-        _;
-    }
-
-    modifier beforeRedemptionDate() {
-        require(block.timestamp < redemptionTriggerDate, "Redemption trigger date has passed");
-        _;
-    }
-
-    constructor(address _company, address _investor) {
+    constructor(address _company, address _investor, uint256 _totalInvestment, uint256 _sharePrice) {
         company = _company;
         investor = _investor;
-        obligationDeadline = redemptionTriggerDate + 365 days; // 12 months from redemption trigger event
+        totalInvestment = _totalInvestment;
+        sharePrice = _sharePrice;
     }
 
-    function raiseFunds() external onlyInvestor afterStartDate {
-        require(!fundsRaised, "Investment already raised");
-        require(msg.value == totalInvestmentAmount, "Incorrect investment amount");
-
-        fundsRaised = true;
-        emit InvestmentReceived(msg.sender, msg.value);
+    function makeInvestment() external returns (bool) {
+        require(msg.sender == investor, "Only investor can make an investment");
+        emit InvestmentMade(investor, totalInvestment);
+        return true;
+    }
+    
+    function redeemShares() external returns (bool) {
+        require(msg.sender == company, "Only company can redeem shares");
+        obligationsMet[company] = true;
+        emit SharesRedeemed(company, totalInvestment);
+        return true;
     }
 
-    function triggerRedemptionObligation() external onlyCompany beforeRedemptionDate {
-        require(!obligationTriggered, "Redemption obligation has already been triggered");
-        obligationTriggered = true;
-        emit RedemptionObligationTriggered(obligationDeadline);
+    function getTotalInvestment() external view returns (uint256) {
+        return totalInvestment;
     }
 
-    function redeemShares() external onlyCompany {
-        require(obligationTriggered, "Redemption obligation not triggered");
-        require(block.timestamp <= obligationDeadline, "Obligation deadline has passed");
-        
-        // Logic for redeeming shares would go here
-
-        obligationTriggered = false; // Reset the state for next potential redemption
-    }
-
-    // Fallback function to receive Ether
-    receive() external payable {
-        require(msg.sender == investor, "Only investor can send Ether");
-        require(msg.value == totalInvestmentAmount, "Investment amount must be exactly the total investment amount");
-        raiseFunds();
-    }
-
-    // Function to withdraw funds by company after successful fundraising
-    function withdrawFunds() external onlyCompany {
-        require(fundsRaised, "No funds to withdraw");
-        payable(company).transfer(address(this).balance);
-        fundsRaised = false; // Reset funds raised state after withdrawal
+    function getSharePrice() external view returns (uint256) {
+        return sharePrice;
     }
 }
